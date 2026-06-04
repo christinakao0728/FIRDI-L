@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { --primary-color: #4e73df; --success-color: #1cc88a; --info-color: #36b9cc; }
+        :root { --primary-color: #4e73df; --success-color: #1cc88a; --info-color: #36b9cc; --warning-color: #f6c23e; }
         body { background-color: #f4f7fc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .dashboard-container { padding: 30px; }
         .card { border: none; border-radius: 12px; box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15); margin-bottom: 20px; }
@@ -21,16 +21,28 @@
         .stat-title { font-size: 0.7rem; font-weight: bold; color: #4e73df; text-transform: uppercase; margin-bottom: 0.25rem; }
         .stat-value { font-size: 1.25rem; font-weight: bold; color: #5a5c69; }
         .icon-box { color: #dddfeb; font-size: 2rem; }
-        .chart-container { position: relative; height: 300px; }
-        .table-responsive { background: white; border-radius: 12px; padding: 15px; }
+        .chart-container { position: relative; height: 350px; display: flex; align-items: center; justify-content: center; }
+        
+        /* 台灣地圖樣式 */
+        #taiwan-map { height: 100%; width: auto; max-width: 100%; }
+        .region { fill: #e0e0e0; stroke: #fff; stroke-width: 2; transition: fill 0.3s; cursor: pointer; }
+        .region:hover { fill: #b0b0b0; }
+        .region.active-north { fill: #4e73df; }
+        .region.active-central { fill: #1cc88a; }
+        .region.active-south { fill: #36b9cc; }
+        .region.active-east { fill: #f6c23e; }
+        
+        .map-legend { font-size: 0.8rem; margin-top: 10px; }
+        .legend-item { display: flex; align-items: center; margin-right: 15px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; }
     </style>
 </head>
 <body>
 
 <div class="dashboard-container">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-chart-pie me-2"></i>食材進貨查詢與視覺化儀表板</h1>
-        <span class="badge bg-primary">即時數據分析</span>
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-map-location-dot me-2"></i>食材進貨地理分佈儀表板</h1>
+        <span class="badge bg-primary">台灣產地數據分析</span>
     </div>
 
     <!-- 統計卡片 -->
@@ -50,7 +62,6 @@
                 </div>
             </div>
         </div>
-
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card stat-card stat-card-success h-100 py-2">
                 <div class="card-body">
@@ -66,14 +77,13 @@
                 </div>
             </div>
         </div>
-
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card stat-card stat-card-info h-100 py-2">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="stat-title">主要供應商</div>
-                            <div class="stat-value" id="topSupplier" style="font-size: 1rem;">載入中...</div>
+                            <div class="stat-value" id="topSupplier" style="font-size: 0.9rem;">載入中...</div>
                         </div>
                         <div class="col-auto icon-box">
                             <i class="fas fa-truck"></i>
@@ -82,9 +92,8 @@
                 </div>
             </div>
         </div>
-
         <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stat-card h-100 py-2" style="border-left-color: #f6c23e;">
+            <div class="card stat-card h-100 py-2" style="border-left-color: var(--warning-color);">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
@@ -100,27 +109,48 @@
         </div>
     </div>
 
-    <!-- 圖表區 -->
+    <!-- 圖表與地圖區 -->
     <div class="row">
-        <div class="col-lg-6">
+        <div class="col-lg-5">
             <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold">產地分佈佔比</h6>
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold">台灣產地區域分佈</h6>
+                    <small class="text-muted" id="map-info">點擊地圖篩選</small>
                 </div>
-                <div class="card-body">
+                <div class="card-body text-center">
                     <div class="chart-container">
-                        <canvas id="originChart"></canvas>
+                        <!-- 簡化版台灣區域 SVG -->
+                        <svg id="taiwan-map" viewBox="0 0 250 400" xmlns="http://www.w3.org/2000/svg">
+                            <!-- 北區 -->
+                            <path id="path-north" class="region" d="M160,20 L210,50 L200,100 L140,90 L130,50 Z" />
+                            <text x="165" y="65" font-size="12" fill="#333" pointer-events="none">北區</text>
+                            <!-- 中區 -->
+                            <path id="path-central" class="region" d="M140,90 L200,100 L170,180 L100,170 L90,120 Z" />
+                            <text x="135" y="145" font-size="12" fill="#333" pointer-events="none">中區</text>
+                            <!-- 南區 -->
+                            <path id="path-south" class="region" d="M100,170 L170,180 L140,300 L80,280 L70,220 Z" />
+                            <text x="110" y="245" font-size="12" fill="#333" pointer-events="none">南區</text>
+                            <!-- 東區 -->
+                            <path id="path-east" class="region" d="M200,100 L230,150 L210,280 L140,300 L170,180 Z" />
+                            <text x="185" y="215" font-size="12" fill="#333" pointer-events="none">東區</text>
+                        </svg>
+                    </div>
+                    <div class="d-flex justify-content-center map-legend flex-wrap">
+                        <div class="legend-item"><div class="legend-color" style="background: #4e73df;"></div>北區: <span id="count-north">0</span></div>
+                        <div class="legend-item"><div class="legend-color" style="background: #1cc88a;"></div>中區: <span id="count-central">0</span></div>
+                        <div class="legend-item"><div class="legend-color" style="background: #36b9cc;"></div>南區: <span id="count-south">0</span></div>
+                        <div class="legend-item"><div class="legend-color" style="background: #f6c23e;"></div>東區: <span id="count-east">0</span></div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-lg-6">
+        <div class="col-lg-7">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold">前五大進貨食材</h6>
+                    <h6 class="m-0 font-weight-bold">進貨頻率最高食材 Top 8</h6>
                 </div>
                 <div class="card-body">
-                    <div class="chart-container">
+                    <div class="chart-container" style="height: 380px;">
                         <canvas id="ingredientChart"></canvas>
                     </div>
                 </div>
@@ -131,7 +161,7 @@
     <!-- 原始數據表格 -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold">詳細進貨明細表</h6>
+            <h6 class="m-0 font-weight-bold">進貨明細清單</h6>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -152,7 +182,6 @@
     </div>
 </div>
 
-<!-- JS: jQuery, Bootstrap, DataTables, Chart.js -->
 <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -160,6 +189,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+    // 您的 CSV 數據
     const csvData = `批號,食材,產地,供應商,進貨日期
 b-1000,紅蘿蔔,中區,大全農產,20260101
 b-1001,菇類,南區,益昌,2 Mar 2026
@@ -256,7 +286,7 @@ BATCH1048,洋蔥,東區,綠源,20260121`;
     $(document).ready(function() {
         const rows = csvData.trim().split('\n').slice(1);
         let tableHtml = "";
-        let origins = {};
+        let origins = { "北區": 0, "中區": 0, "南區": 0, "東區": 0 };
         let ingredients = {};
         let suppliers = {};
 
@@ -264,42 +294,56 @@ BATCH1048,洋蔥,東區,綠源,20260121`;
             const cols = row.split(',');
             tableHtml += `<tr>${cols.map(c => `<td>${c}</td>`).join('')}</tr>`;
             
-            // 統計數據
-            origins[cols[2]] = (origins[cols[2]] || 0) + 1;
+            // 統計
+            if(origins.hasOwnProperty(cols[2])) origins[cols[2]]++;
             ingredients[cols[1]] = (ingredients[cols[1]] || 0) + 1;
             suppliers[cols[3]] = (suppliers[cols[3]] || 0) + 1;
         });
 
-        // 填充卡片數據
+        // 更新統計卡片
         $('#tableBody').html(tableHtml);
         $('#totalItems').text(rows.length);
-        $('#totalOrigins').text(Object.keys(origins).length);
+        $('#totalOrigins').text(Object.values(origins).filter(v => v > 0).length);
         $('#totalIngredients').text(Object.keys(ingredients).length);
-        
         let topSup = Object.keys(suppliers).reduce((a, b) => suppliers[a] > suppliers[b] ? a : b);
         $('#topSupplier').text(topSup);
 
+        // 更新地圖標籤數據
+        $('#count-north').text(origins["北區"]);
+        $('#count-central').text(origins["中區"]);
+        $('#count-south').text(origins["南區"]);
+        $('#count-east').text(origins["東區"]);
+
+        // 地圖顏色啟動
+        if(origins["北區"] > 0) $('#path-north').addClass('active-north');
+        if(origins["中區"] > 0) $('#path-central').addClass('active-central');
+        if(origins["南區"] > 0) $('#path-south').addClass('active-south');
+        if(origins["東區"] > 0) $('#path-east').addClass('active-east');
+
         // 初始化表格
-        $('#dataTable').DataTable({
+        const table = $('#dataTable').DataTable({
             "language": { "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/zh-HANT.json" },
-            "pageLength": 5
+            "pageLength": 10
         });
 
-        // 繪製產地圓餅圖
-        new Chart(document.getElementById('originChart'), {
-            type: 'pie',
-            data: {
-                labels: Object.keys(origins),
-                datasets: [{
-                    data: Object.values(origins),
-                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b']
-                }]
-            },
-            options: { maintainAspectRatio: false }
+        // 點擊地圖篩選表格
+        $('.region').click(function() {
+            const regionId = $(this).attr('id').replace('path-', '');
+            const regionMap = { 'north': '北區', 'central': '中區', 'south': '南區', 'east': '東區' };
+            const regionName = regionMap[regionId];
+            
+            table.column(2).search(regionName).draw();
+            $('#map-info').html(`<span class="badge bg-info">已篩選: ${regionName}</span> <a href="#" id="clear-filter" class="ms-2">清除</a>`);
         });
 
-        // 繪製前五大食材長條圖
-        const sortedIng = Object.entries(ingredients).sort((a,b) => b[1] - a[1]).slice(0, 5);
+        $(document).on('click', '#clear-filter', function(e) {
+            e.preventDefault();
+            table.column(2).search('').draw();
+            $('#map-info').text('點擊地圖篩選');
+        });
+
+        // 繪製食材圖表
+        const sortedIng = Object.entries(ingredients).sort((a,b) => b[1] - a[1]).slice(0, 8);
         new Chart(document.getElementById('ingredientChart'), {
             type: 'bar',
             data: {
@@ -307,12 +351,14 @@ BATCH1048,洋蔥,東區,綠源,20260121`;
                 datasets: [{
                     label: '進貨次數',
                     data: sortedIng.map(x => x[1]),
-                    backgroundColor: '#4e73df'
+                    backgroundColor: '#4e73df',
+                    borderRadius: 5
                 }]
             },
             options: { 
                 maintainAspectRatio: false,
-                indexAxis: 'y', // 橫向長條圖
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
                 scales: { x: { beginAtZero: true } }
             }
         });
