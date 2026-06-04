@@ -41,8 +41,8 @@
 
 <div class="dashboard-container">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-map-location-dot me-2"></i>食材進貨地理分佈儀表板</h1>
-        <span class="badge bg-primary">真實台灣地圖數據分析</span>
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-chart-line me-2"></i>食材進貨智能分析儀表板</h1>
+        <span class="badge bg-primary">數據驅動決策</span>
     </div>
 
     <!-- 統計卡片 -->
@@ -102,25 +102,20 @@
     </div>
 
     <div class="row">
+        <!-- 台灣地圖區域 -->
         <div class="col-lg-5">
             <div class="card shadow mb-4">
                 <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold">台灣產地分佈 (真實輪廓)</h6>
+                    <h6 class="m-0 font-weight-bold">台灣產地分佈輪廓</h6>
                     <small class="text-muted" id="map-info">點擊區域進行篩選</small>
                 </div>
                 <div class="card-body">
                     <div class="chart-container">
-                        <!-- 精確輪廓的台灣地圖 SVG -->
                         <svg id="taiwan-map" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
-                            <!-- 北區 (基隆, 台北, 新北, 桃園, 新竹, 宜蘭) -->
                             <path id="path-north" class="region" d="M280,10 L310,20 L330,40 L340,70 L330,110 L290,140 L240,130 L220,90 L230,40 Z" />
-                            <!-- 中區 (苗栗, 台中, 彰化, 南投, 雲林) -->
                             <path id="path-central" class="region" d="M240,130 L290,140 L280,190 L260,250 L180,240 L160,200 L180,140 Z" />
-                            <!-- 南區 (嘉義, 台南, 高雄, 屏東) -->
                             <path id="path-south" class="region" d="M180,240 L260,250 L240,320 L210,420 L180,480 L140,450 L120,380 L130,280 Z" />
-                            <!-- 東區 (花蓮, 台東) -->
                             <path id="path-east" class="region" d="M290,140 L330,110 L350,180 L320,350 L280,420 L210,420 L240,320 L260,250 L280,190 Z" />
-                            
                             <text x="275" y="70" font-size="16" font-weight="bold" fill="#333" pointer-events="none">北區</text>
                             <text x="210" y="185" font-size="16" font-weight="bold" fill="#333" pointer-events="none">中區</text>
                             <text x="160" y="360" font-size="16" font-weight="bold" fill="#333" pointer-events="none">南區</text>
@@ -136,14 +131,15 @@
                 </div>
             </div>
         </div>
+        <!-- 食材分佈區域：更換為 Polar Area Chart -->
         <div class="col-lg-7">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold">進貨頻率最高食材 Top 8</h6>
+                    <h6 class="m-0 font-weight-bold">食材供應佔比動態分析 (Polar Area)</h6>
                 </div>
                 <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="ingredientChart"></canvas>
+                    <div class="chart-container" style="height: 400px;">
+                        <canvas id="ingredientPolarChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -268,6 +264,15 @@ BATCH1088,豆腐,北區,綠源,2026/5/5
 b-1089,洋蔥,東區,海洋直送,6 Jan 2026
 BATCH1048,洋蔥,東區,綠源,20260121`;
 
+    // 品類顏色映射
+    const ingredientColors = {
+        '菇類': '#8d6e63', '雞蛋': '#fdd835', '高麗菜': '#66bb6a', '洋蔥': '#ffee58',
+        '紅蘿蔔': '#ff7043', '麵粉': '#bdbdbd', '白米': '#e0e0e0', '馬鈴薯': '#a1887f',
+        '起司': '#ffd54f', '食用油': '#ffb300', '醬油': '#3e2723', '豆腐': '#f5f5f5',
+        '番茄': '#ef5350', '鮭魚': '#ffa726', '蝦仁': '#ff8a65', '豬絞肉': '#f48fb1',
+        '牛奶': '#e1f5fe', '砂糖': '#f3e5f5', '雞胸肉': '#ffccbc'
+    };
+
     $(document).ready(function() {
         const rows = csvData.trim().split('\n').slice(1);
         let tableHtml = "";
@@ -319,23 +324,37 @@ BATCH1048,洋蔥,東區,綠源,20260121`;
             $('#map-info').text('點擊區域進行篩選');
         });
 
-        const sortedIng = Object.entries(ingredients).sort((a,b) => b[1] - a[1]).slice(0, 8);
-        new Chart(document.getElementById('ingredientChart'), {
-            type: 'bar',
+        // 繪製食材 Polar Area Chart (依據品類區分顏色)
+        const sortedIng = Object.entries(ingredients).sort((a,b) => b[1] - a[1]).slice(0, 10);
+        const labels = sortedIng.map(x => x[0]);
+        const data = sortedIng.map(x => x[1]);
+        const backgroundColors = labels.map(name => ingredientColors[name] || '#4e73df');
+
+        new Chart(document.getElementById('ingredientPolarChart'), {
+            type: 'polarArea',
             data: {
-                labels: sortedIng.map(x => x[0]),
+                labels: labels,
                 datasets: [{
-                    label: '進貨次數',
-                    data: sortedIng.map(x => x[1]),
-                    backgroundColor: '#4e73df',
-                    borderRadius: 5
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderWidth: 1
                 }]
             },
             options: { 
                 maintainAspectRatio: false,
-                indexAxis: 'y',
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true } }
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.label}: 進貨 ${context.raw} 次`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    r: { ticks: { display: false } }
+                }
             }
         });
     });
